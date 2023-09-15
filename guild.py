@@ -1,7 +1,4 @@
 import time
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
 import os, sys
 import requests
 from bs4 import BeautifulSoup
@@ -14,6 +11,7 @@ from PyQt5.QtCore import *
 import checkInfo as ci
 import tracker as track
 import webbrowser
+import csv
 
 __version__ = "DEV"
 
@@ -41,154 +39,12 @@ def selectedWorld(worldName):
     worldIndex = world.index(worldName)
     return worldIndex
 
-def fileCreate(serverName, guildName):
-    global ws1,wb,fileName
+def saveCSV(worldName, guildName):
     now = datetime.datetime.now()
     
     now = now.strftime('%Y-%m-%d')
-
-    fileName = serverName+'_'+guildName+'_'+now+'.xlsx'
-    try:
-        wb = openpyxl.load_workbook(fileName)
-        print('file exists')
-        return False
-    except FileNotFoundError:
-        print('File Not Found:')
-        wb = openpyxl.Workbook()
-    ws1 = wb.active
-
-def tempFileCreate():
-
-    global tempx, tempwb
-
-    tempwb = openpyxl.Workbook()
-    tempx = tempwb.active
-
-def tempGuildCrawl(driver):
-
-    page = 1
-    membersCount = 0
-
-    nowURL = driver.current_url
-
-    global guildlist
-    guildlist = []
-
-
-    while True:
-
-        newURL = nowURL+'&orderby=0&page='+str(page)+''
-        raw = requests.get(newURL,headers=header)
-        html = BeautifulSoup(raw.text,"html.parser")   
-        members = html.select('#container > div > div > table > tbody > tr')
-        
-        for member in range(20):
-            membersCount += 1
-            nickName = members[member].select_one('td.left > dl > dt > a').text
-            print(nickName)
-            guildlist.append(nickName)
-        page += 1
-        time.sleep(1)
-
-def guildCrawl(driver,self):
-
-    page = 1
-    membersCount = 0
-
-    nowURL = driver.current_url
-
-    while True:
-
-        newURL = nowURL+'&orderby=0&page='+str(page)+''
-        raw = requests.get(newURL,headers=header)
-        html = BeautifulSoup(raw.text,"html.parser")   
-        members = html.select('#container > div > div > table > tbody > tr')
-        
-        for member in range(20):
-            membersCount += 1
-            nickName = members[member].select_one('td.left > dl > dt > a').text
-            print(nickName)
-            ws1.append([nickName])
-            self.statusBar().showMessage(nickName)
-        page += 1
-        time.sleep(1)
-
-def finalCheck(self, guildName):
-    set1 = set(guildlist)
-    set2 = set(oldGuildList)
-    changeCount = 0
     
-    guildIn = list(set1 - set2)
-    guildOut = list(set2 - set1)
-
-    newList = []
-    trackList = [] #닉변 추적 기능 임시 비활성화, 기존 길드 = 변경 길드 일 경우 찾을 수 없음으로 표기
-    errorList = [] #기존 trackList를 errorList로 옮김
-    leaveList = []
-    transferList = []
-
-
-    for i in range(len(guildIn)):
-        print('[신규]',guildIn[i])
-        changed = ('[신규] '+guildIn[i])
-        self.guildMembers_changed.append(changed)
-        newList.append(guildIn[i])
-        changeCount += 1
-
-
-    for i in range(len(guildOut)):
-        time.sleep(0.3)
-        check, newGuild = ci.checkGuild(guildOut[i], guildName)
-        if newGuild == '':
-            print('[탈퇴]', guildOut[i])
-            changed = ('[탈퇴] '+guildOut[i])
-            leaveList.append(changed)
-            changeCount += 1
-        elif newGuild == guildName:
-            # print('[닉변/캐삭]',guildOut[i])
-            # changed = ('[닉변/캐삭] '+guildOut[i])
-            # self.guildMembers_changed.append(changed)
-            notFound = ('[확인불가] '+guildOut[i])
-            errorList.append(notFound)
-            changeCount += 1
-        else:
-            print('[이전]', guildOut[i],'-> ',newGuild)
-            changed = ('[이전] '+guildOut[i]+' -> '+newGuild)
-            transferList.append(changed)
-            changeCount += 1
-
-    for i in range(len(leaveList)):
-        self.guildMembers_changed.append(leaveList[i])
-    
-    for i in range(len(transferList)):
-        self.guildMembers_changed.append(transferList[i])
-
-    nickChangeResult = []
-    unverifiedResult = []
-
-    for i in range(len(trackList)): #닉변 확인
-
-        changed_to = track.tracker(trackList[i],newList)
-
-        if len(changed_to) > 0:
-            result = '/'.join(changed_to)
-            changed = '[닉변]'+trackList[i]+' -> '+result
-            nickChangeResult.append(changed)
-
-        else:
-            changed = ('[확인불가]'+trackList[i])
-            unverifiedResult.append(changed)
-
-    for i in range(len(errorList)):
-        self.guildMembers_changed.append(errorList[i])
-    
-    for i in range(len(nickChangeResult)):
-        self.guildMembers_changed.append(nickChangeResult[i])
-    
-    for i in range(len(unverifiedResult)):
-        self.guildMembers_changed.append(unverifiedResult[i])
-        
-    self.changeCount.setText(str(changeCount)+' 명')
+    wb.save(f"{worldName}_{guildName}_{now}.csv")
 
 class execute(QThread):
     def __init__(self, parent):
@@ -236,11 +92,8 @@ class execute(QThread):
 
                     for i in range(len(membersList)):
                         sheet.append(membersList[i])
-                    self.parent.guildMembers.append(membersList)
-                    now = datetime.datetime.now()
-                    now = now.strftime('%Y-%m-%d')
-                    wb.save(f"{worldName}_{guildName}_{now}.csv")
-                    self.parent.count.setText(str(len(membersList))+' 명')
+                    saveCSV(worldName, guildName)
+                    
                     self.parent.statusBar().showMessage('추출하기 완료. '+guildName)
                     self.parent.btn_start.setEnabled(True)
 
@@ -259,8 +112,7 @@ class execute(QThread):
             nick = member.select_one('td.left > span > img')['alt']
             # job = member.select_one('td.left > dl > dd').text #일부 직업들은 기사단/마법사/전사/해적 등으로 표시되어있음
             membersList.append([nick])
-
-       
+      
 class WindowClass(QMainWindow, form_class):
 
     def __init__(self):
@@ -273,6 +125,7 @@ class WindowClass(QMainWindow, form_class):
         self.statusBar().showMessage('프로그램 정상 구동 중')
 
         #실행 후 기본값 설정
+        self.input_guildName.returnPressed.connect(self.main)
 
         #버튼 기능
         self.btn_start.clicked.connect(self.main)
@@ -288,7 +141,7 @@ class WindowClass(QMainWindow, form_class):
 
     def fileLoad(self): #파일 불러오기
         global sheet, oldGuildList
-        fname = QFileDialog.getOpenFileName(self,'','','Excel(*.xlsx) ;;All File(*)')
+        fname = QFileDialog.getOpenFileName(self,'','','Excel(*.xlsx, *.csv);; ;;All File(*)')
         
         self.guildMembers_changed.setText('')
         self.changeCount.setText('- 명')
