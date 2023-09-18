@@ -132,8 +132,8 @@ class execute(QThread):
     def run(self):
         self.parent.btn_start.setDisabled(True)
         self.parent.btn_check.setDisabled(True)
-        self.count.setText('- 명')
-        self.changeCount.setText('- 명')
+        self.parent.count.setText('- 명')
+        self.parent.changeCount.setText('- 명')
         self.parent.statusBar().showMessage('길드원 추출 준비 중..')
 
         worldName = str(self.parent.combo_serverName.currentText())
