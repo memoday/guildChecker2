@@ -198,25 +198,6 @@
     <string>추출하기</string>
    </property>
   </widget>
-  <widget class="QPushButton" name="btn_exit">
-   <property name="geometry">
-    <rect>
-     <x>520</x>
-     <y>320</y>
-     <width>100</width>
-     <height>31</height>
-    </rect>
-   </property>
-   <property name="focusPolicy">
-    <enum>Qt::NoFocus</enum>
-   </property>
-   <property name="autoFillBackground">
-    <bool>false</bool>
-   </property>
-   <property name="text">
-    <string>종료</string>
-   </property>
-  </widget>
   <widget class="QTextBrowser" name="guildMembers">
    <property name="geometry">
     <rect>
@@ -373,30 +354,11 @@
     <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
    </property>
   </widget>
-  <widget class="QLabel" name="label_5">
-   <property name="geometry">
-    <rect>
-     <x>390</x>
-     <y>40</y>
-     <width>271</width>
-     <height>16</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>굴림</family>
-     <pointsize>8</pointsize>
-    </font>
-   </property>
-   <property name="text">
-    <string>*리부트 월드는 정상 작동하지 않습니다.</string>
-   </property>
-  </widget>
   <widget class="QLabel" name="label_6">
    <property name="geometry">
     <rect>
      <x>390</x>
-     <y>60</y>
+     <y>50</y>
      <width>271</width>
      <height>16</height>
     </rect>
@@ -415,7 +377,7 @@
    <property name="geometry">
     <rect>
      <x>390</x>
-     <y>80</y>
+     <y>70</y>
      <width>271</width>
      <height>16</height>
     </rect>

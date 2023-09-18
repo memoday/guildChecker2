@@ -1,8 +1,6 @@
-import time
 import os, sys
 import requests
 from bs4 import BeautifulSoup
-import openpyxl
 import datetime
 from PyQt5 import uic
 from PyQt5.QtGui import *
@@ -30,10 +28,6 @@ form = resource_path('ui/main.ui')
 
 form_class = uic.loadUiType(form)[0]
 
-wb = openpyxl.Workbook()
-sheet = wb.active
-membersList = []
-
 def selectedWorld(worldName):
     world = [None,'리부트','리부트2','오로라','레드','이노시스','유니온','스카니아','루나','제니스','크로아','베라','엘리시움','아케인','노바']
     worldIndex = world.index(worldName)
@@ -41,10 +35,18 @@ def selectedWorld(worldName):
 
 def saveCSV(worldName, guildName):
     now = datetime.datetime.now()
-    
     now = now.strftime('%Y-%m-%d')
+
+    with open(f'{worldName}_{guildName}_{now}.csv', 'w', newline='') as csvfile:
+        print('')
+
+class compare(QThread):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
     
-    wb.save(f"{worldName}_{guildName}_{now}.csv")
+    def run(self):
+        print('hello')
 
 class execute(QThread):
     def __init__(self, parent):
@@ -65,6 +67,7 @@ class execute(QThread):
             return
 
         url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
+        membersList = []
 
         try:
             raw = requests.get(url,headers=header)
@@ -78,7 +81,7 @@ class execute(QThread):
                 self.parent.statusBar().showMessage(f'{guildName} 길드원 추출 중: {pageNumber} /10')
                 guildUrlPage = guildUrl+f'&page={pageNumber}'
                 try:
-                    self.crawlMembers(guildUrlPage)
+                    self.crawlMembers(guildUrlPage,membersList)
                     print('크롤링한 페이지: ',pageNumber)
                 except Exception as e:
                     print(e)
@@ -90,9 +93,13 @@ class execute(QThread):
                     print(membersList)
                     print(len(membersList))
 
-                    for i in range(len(membersList)):
-                        sheet.append(membersList[i])
-                    saveCSV(worldName, guildName)
+                    now = datetime.datetime.now()
+                    now = now.strftime('%Y-%m-%d')
+
+                    with open(f'{worldName}_{guildName}_{now}.csv', 'w', newline='') as csvfile:
+                        writer = csv.writer(csvfile)
+                        for i in range(len(membersList)):
+                            writer.writerow(membersList[i])
                     
                     self.parent.statusBar().showMessage('추출하기 완료. '+guildName)
                     self.parent.btn_start.setEnabled(True)
@@ -104,7 +111,7 @@ class execute(QThread):
         except Exception as e:
             self.parent.statusBar().showMessage(f'[ERROR] {e}')
         
-    def crawlMembers(self,guildUrl):
+    def crawlMembers(self,guildUrl,membersList):
         r = requests.get(guildUrl,headers=header)
         html = BeautifulSoup(r.text,"html.parser") 
         members = html.select('#container > div > div > table > tbody > tr')
@@ -129,7 +136,6 @@ class WindowClass(QMainWindow, form_class):
 
         #버튼 기능
         self.btn_start.clicked.connect(self.main)
-        self.btn_exit.clicked.connect(self.exit)
         self.btn_load.clicked.connect(self.fileLoad)
         self.btn_check.clicked.connect(self.checkInfo)
         self.btn_github.clicked.connect(self.github)
@@ -143,6 +149,7 @@ class WindowClass(QMainWindow, form_class):
         global sheet, oldGuildList
         fname = QFileDialog.getOpenFileName(self,'','','Excel(*.xlsx, *.csv);; ;;All File(*)')
         
+        self.guildMembers.setText('')
         self.guildMembers_changed.setText('')
         self.changeCount.setText('- 명')
 
@@ -159,32 +166,38 @@ class WindowClass(QMainWindow, form_class):
 
         count = 0
         oldGuildList = []
+        
         if fname[0]:
-            f = open(fname[0],'r')
-            data = openpyxl.load_workbook(filename= fname[0],data_only=True)
-            sheet = data['Sheet']
-            
-            try:
-                for i in list(sheet.columns)[0]:
+            with open(fname[0], newline='') as csvfile:
+                reader = csv.reader(csvfile, delimiter=',')
+                
+                count = 0
+                oldGuildList = []
+
+                for row in reader:
                     count += 1
-                    self.guildMembers.append(i.value)
-                    oldGuildList.append(i.value)
-                self.count.setText(str(count)+' 명')
-            except IndexError:
-                self.statusBar().showMessage('불러올 길드원이 없습니다. '+loadedFile)
+                    oldGuildList.append(row[0])
+                    self.guildMembers.append(row[0])
+                    print(row[0])
+            
+            # try:
+            #     for i in list(sheet.columns)[0]:
+            #         count += 1
+            #         self.guildMembers.append(i.value)
+            #         oldGuildList.append(i.value)
+            #     self.count.setText(str(count)+' 명')
+            # except IndexError:
+            #     self.statusBar().showMessage('불러올 길드원이 없습니다. '+loadedFile)
+        self.count.setText(str(count)+' 명')
 
     def checkInfo(self): #변동사항 확인
-        print('')
+        y = compare(self)
+        y.start()
 
     def github(self):
         webbrowser.open_new_tab('https://github.com/memoday/guildMemberChecker/releases')
 
-    def exit(self):
-        os.system("taskkill /f /im chromedriver.exe") #chomrdriver.exe 강제종료
-        sys.exit(0)
-
     def closeEvent(self, event):
-        os.system("taskkill /f /im chromedriver.exe") #chomrdriver.exe 강제종료
         sys.exit(0)
 
 if __name__ == "__main__":
