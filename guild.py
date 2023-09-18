@@ -33,20 +33,105 @@ def selectedWorld(worldName):
     worldIndex = world.index(worldName)
     return worldIndex
 
-def saveCSV(worldName, guildName):
-    now = datetime.datetime.now()
-    now = now.strftime('%Y-%m-%d')
-
-    with open(f'{worldName}_{guildName}_{now}.csv', 'w', newline='') as csvfile:
-        print('')
-
 class compare(QThread):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
     
     def run(self):
-        print('hello')
+        self.parent.btn_start.setDisabled(True)
+        self.parent.statusBar().showMessage('최신 길드원 정보 불러오는 중...')
+
+        worldName = str(self.parent.combo_serverName.currentText())
+        worldNumber = selectedWorld(worldName)
+
+        guildName = self.parent.input_guildName.text()
+        if guildName == "":
+            self.parent.statusBar().showMessage('변동사항 확인: 길드 이름을 입력해주세요')
+            return
+
+        url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
+        recentMemberList = []
+
+        try:
+            raw = requests.get(url,headers=header)
+            html = BeautifulSoup(raw.text,"html.parser")
+            href = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr > td:nth-child(2) > span > a')['href']
+
+            guildUrl = 'https://maplestory.nexon.com'+href
+            pageNumber = 1
+
+            while True:
+                self.parent.statusBar().showMessage(f'{guildName} 최신 길드원 정보 추출 중: {pageNumber} /10')
+                guildUrlPage = guildUrl+f'&page={pageNumber}'
+                try:
+                    r = requests.get(guildUrlPage,headers=header)
+                    html = BeautifulSoup(r.text,"html.parser") 
+                    members = html.select('#container > div > div > table > tbody > tr')
+                    for member in members:
+                        nick = member.select_one('td.left > span > img')['alt']
+                        # job = member.select_one('td.left > dl > dd').text #일부 직업들은 기사단/마법사/전사/해적 등으로 표시되어있음
+                        recentMemberList.append([nick][0])
+                    print('크롤링한 페이지: ',pageNumber)
+                except Exception as e:
+                    print(e)
+                    break
+
+                if pageNumber == 10:
+                    print('10번째 페이지로 크롤링을 종료합니다\n')
+                    print(f'최신 길드원 목록{len(recentMemberList)}')
+                    print(recentMemberList)
+
+                    self.parent.statusBar().showMessage(f'변동사항 확인 중... {guildName}')
+
+                    newcomerList, leaveList = self.checkChanges(recentMemberList)
+                    for i in range(len(newcomerList)):
+                        self.parent.guildMembers_changed.append('[신규] '+newcomerList[i])
+                    for i in range(len(leaveList)):
+                        self.parent.guildMembers_changed.append('[탈퇴] '+leaveList[i])
+
+                    changeCount = len(newcomerList) + len(leaveList)
+                    self.parent.changeCount.setText(str(changeCount)+' 명')
+                    
+                    self.parent.statusBar().showMessage('변동사항 확인 완료 '+guildName)
+                    self.parent.btn_start.setEnabled(True)
+
+                    break
+                else:
+                    pageNumber += 1
+
+        except Exception as e:
+            self.parent.statusBar().showMessage(f'[ERROR] {e}')
+            self.parent.btn_start.setEnabled(True)
+        
+    def checkChanges(self,recentMemberList):
+        # self.parent.guildMembers_changed.setText('')
+        set1 = set(recentMemberList)
+        set2 = set(oldGuildList)
+        changeCount = 0
+        
+        guildIn = list(set1 - set2)
+        guildOut = list(set2 - set1)
+
+        newcomerList = []
+        trackList = [] #닉변 추적 기능 임시 비활성화, 기존 길드 = 변경 길드 일 경우 찾을 수 없음으로 표기
+        leaveList = []
+
+        for i in range(len(guildIn)):
+            print('[신규]',guildIn[i])
+            changed = ('[신규] '+guildIn[i])
+            newcomerList.append(guildIn[i])
+            changeCount += 1
+        
+        for i in range(len(guildOut)):
+            print('[탈퇴]',guildOut[i])
+            changed = ('[탈퇴] '+guildOut[i])
+            leaveList.append(guildOut[i])
+            changeCount += 1
+
+        return newcomerList, leaveList
+
+
 
 class execute(QThread):
     def __init__(self, parent):
@@ -110,6 +195,7 @@ class execute(QThread):
 
         except Exception as e:
             self.parent.statusBar().showMessage(f'[ERROR] {e}')
+            self.parent.btn_start.setEnabled(True)
         
     def crawlMembers(self,guildUrl,membersList):
         r = requests.get(guildUrl,headers=header)
@@ -146,7 +232,7 @@ class WindowClass(QMainWindow, form_class):
         x.start()
 
     def fileLoad(self): #파일 불러오기
-        global sheet, oldGuildList
+        global oldGuildList
         fname = QFileDialog.getOpenFileName(self,'','','Excel(*.xlsx, *.csv);; ;;All File(*)')
         
         self.guildMembers.setText('')
@@ -179,15 +265,7 @@ class WindowClass(QMainWindow, form_class):
                     oldGuildList.append(row[0])
                     self.guildMembers.append(row[0])
                     print(row[0])
-            
-            # try:
-            #     for i in list(sheet.columns)[0]:
-            #         count += 1
-            #         self.guildMembers.append(i.value)
-            #         oldGuildList.append(i.value)
-            #     self.count.setText(str(count)+' 명')
-            # except IndexError:
-            #     self.statusBar().showMessage('불러올 길드원이 없습니다. '+loadedFile)
+
         self.count.setText(str(count)+' 명')
 
     def checkInfo(self): #변동사항 확인
