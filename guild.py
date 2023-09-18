@@ -6,12 +6,10 @@ from PyQt5 import uic
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
-import checkInfo as ci
-import tracker as track
 import webbrowser
 import csv
 
-__version__ = "DEV"
+__version__ = "v2.0.0"
 
 header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Whale/3.18.154.13 Safari/537.36",
@@ -40,14 +38,15 @@ class compare(QThread):
     
     def run(self):
         self.parent.btn_start.setDisabled(True)
+        self.parent.btn_check.setDisabled(True)
         self.parent.statusBar().showMessage('최신 길드원 정보 불러오는 중...')
 
         worldName = str(self.parent.combo_serverName.currentText())
         worldNumber = selectedWorld(worldName)
 
         guildName = self.parent.input_guildName.text()
-        if guildName == "":
-            self.parent.statusBar().showMessage('변동사항 확인: 길드 이름을 입력해주세요')
+        if guildName == "" or len(guildName) < 2:
+            self.parent.statusBar().showMessage('변동사항 확인: 정확한 길드명을 입력해주세요')
             return
 
         url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
@@ -93,7 +92,6 @@ class compare(QThread):
                     self.parent.changeCount.setText(str(changeCount)+' 명')
                     
                     self.parent.statusBar().showMessage('변동사항 확인 완료 '+guildName)
-
                     break
                 else:
                     pageNumber += 1
@@ -132,16 +130,18 @@ class execute(QThread):
         self.parent = parent
         
     def run(self):
-
         self.parent.btn_start.setDisabled(True)
+        self.parent.btn_check.setDisabled(True)
+        self.count.setText('- 명')
+        self.changeCount.setText('- 명')
         self.parent.statusBar().showMessage('길드원 추출 준비 중..')
 
         worldName = str(self.parent.combo_serverName.currentText())
         worldNumber = selectedWorld(worldName)
 
         guildName = self.parent.input_guildName.text()
-        if guildName == "":
-            self.parent.statusBar().showMessage('추출하기: 길드 이름을 입력해주세요')
+        if guildName == "" or len(guildName) < 2:
+            self.parent.statusBar().showMessage('추출하기: 정확한 길드명을 입력해주세요')
             return
         
         now = datetime.datetime.now()
@@ -181,7 +181,6 @@ class execute(QThread):
 
                 if pageNumber == 10:
 
-                    print('10번째 페이지로 크롤링을 종료합니다\n')
                     print(membersList)
                     print(len(membersList))
 
@@ -190,7 +189,7 @@ class execute(QThread):
                         for i in range(len(membersList)):
                             writer.writerow(membersList[i])
                     
-                    self.parent.statusBar().showMessage('추출하기 완료. '+guildName)
+                    self.parent.statusBar().showMessage('추출하기 완료'+guildName)
 
                     break
                 else:
@@ -236,10 +235,11 @@ class WindowClass(QMainWindow, form_class):
 
     def on_finished(self):
         self.btn_start.setEnabled(True)
+        self.btn_check.setEnabled(True)
 
     def fileLoad(self): #파일 불러오기
         global oldGuildList
-        fname = QFileDialog.getOpenFileName(self,'','','Excel(*.csv);; ;;All File(*)')
+        fname = QFileDialog.getOpenFileName(self,'','','Excel(*.csv);;All File(*)')
         
         self.guildMembers.setText('')
         self.guildMembers_changed.setText('')
@@ -248,6 +248,8 @@ class WindowClass(QMainWindow, form_class):
         loadedFile = QFileInfo(fname[0]).fileName()
         if loadedFile != "":
             self.statusBar().showMessage('파일을 불러왔습니다. '+loadedFile)
+        else:
+            return
 
         try:
             loadedFileServer, loadedFileGuild, loadedFileDate = loadedFile.split('_')
@@ -270,7 +272,6 @@ class WindowClass(QMainWindow, form_class):
                     count += 1
                     oldGuildList.append(row[0])
                     self.guildMembers.append(row[0])
-                    print(row[0])
 
         self.count.setText(str(count)+' 명')
 
