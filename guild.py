@@ -78,8 +78,7 @@ class compare(QThread):
                     break
 
                 if pageNumber == 10:
-                    print('10번째 페이지로 크롤링을 종료합니다\n')
-                    print(f'최신 길드원 목록{len(recentMemberList)}')
+                    print(f'최신 길드원 목록 - ({len(recentMemberList)}) 명')
                     print(recentMemberList)
 
                     self.parent.statusBar().showMessage(f'변동사항 확인 중... {guildName}')
@@ -94,7 +93,6 @@ class compare(QThread):
                     self.parent.changeCount.setText(str(changeCount)+' 명')
                     
                     self.parent.statusBar().showMessage('변동사항 확인 완료 '+guildName)
-                    self.parent.btn_start.setEnabled(True)
 
                     break
                 else:
@@ -102,7 +100,6 @@ class compare(QThread):
 
         except Exception as e:
             self.parent.statusBar().showMessage(f'[ERROR] {e}')
-            self.parent.btn_start.setEnabled(True)
         
     def checkChanges(self,recentMemberList):
         # self.parent.guildMembers_changed.setText('')
@@ -119,19 +116,15 @@ class compare(QThread):
 
         for i in range(len(guildIn)):
             print('[신규]',guildIn[i])
-            changed = ('[신규] '+guildIn[i])
             newcomerList.append(guildIn[i])
             changeCount += 1
         
         for i in range(len(guildOut)):
             print('[탈퇴]',guildOut[i])
-            changed = ('[탈퇴] '+guildOut[i])
             leaveList.append(guildOut[i])
             changeCount += 1
 
         return newcomerList, leaveList
-
-
 
 class execute(QThread):
     def __init__(self, parent):
@@ -149,6 +142,20 @@ class execute(QThread):
         guildName = self.parent.input_guildName.text()
         if guildName == "":
             self.parent.statusBar().showMessage('추출하기: 길드 이름을 입력해주세요')
+            return
+        
+        now = datetime.datetime.now()
+        now = now.strftime('%Y-%m-%d')
+        folder_path = "GuildData"
+        csv_file_name = f'{worldName}_{guildName}_{now}.csv'
+
+        if not os.path.isdir(folder_path): #폴더가 존재하지 않는 경우 폴더 생성
+            os.mkdir(folder_path)
+
+        csv_file_path = os.path.join(folder_path, csv_file_name)
+
+        if os.path.exists(csv_file_path): #파일이 존재하는 경우 작업 취소
+            self.parent.statusBar().showMessage('이미 존재하는 파일입니다')
             return
 
         url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
@@ -178,16 +185,12 @@ class execute(QThread):
                     print(membersList)
                     print(len(membersList))
 
-                    now = datetime.datetime.now()
-                    now = now.strftime('%Y-%m-%d')
-
-                    with open(f'{worldName}_{guildName}_{now}.csv', 'w', newline='') as csvfile:
+                    with open(csv_file_path, 'w', newline='') as csvfile:
                         writer = csv.writer(csvfile)
                         for i in range(len(membersList)):
                             writer.writerow(membersList[i])
                     
                     self.parent.statusBar().showMessage('추출하기 완료. '+guildName)
-                    self.parent.btn_start.setEnabled(True)
 
                     break
                 else:
@@ -195,7 +198,6 @@ class execute(QThread):
 
         except Exception as e:
             self.parent.statusBar().showMessage(f'[ERROR] {e}')
-            self.parent.btn_start.setEnabled(True)
         
     def crawlMembers(self,guildUrl,membersList):
         r = requests.get(guildUrl,headers=header)
@@ -230,10 +232,14 @@ class WindowClass(QMainWindow, form_class):
         self.guildMembers_changed.setText('')
         x = execute(self)
         x.start()
+        x.finished.connect(self.on_finished)
+
+    def on_finished(self):
+        self.btn_start.setEnabled(True)
 
     def fileLoad(self): #파일 불러오기
         global oldGuildList
-        fname = QFileDialog.getOpenFileName(self,'','','Excel(*.xlsx, *.csv);; ;;All File(*)')
+        fname = QFileDialog.getOpenFileName(self,'','','Excel(*.csv);; ;;All File(*)')
         
         self.guildMembers.setText('')
         self.guildMembers_changed.setText('')
@@ -271,9 +277,10 @@ class WindowClass(QMainWindow, form_class):
     def checkInfo(self): #변동사항 확인
         y = compare(self)
         y.start()
+        y.finished.connect(self.on_finished)
 
     def github(self):
-        webbrowser.open_new_tab('https://github.com/memoday/guildMemberChecker/releases')
+        webbrowser.open_new_tab('https://github.com/memoday/guildChecker2')
 
     def closeEvent(self, event):
         sys.exit(0)

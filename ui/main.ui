@@ -22,6 +22,9 @@
     <height>450</height>
    </size>
   </property>
+  <property name="focusPolicy">
+   <enum>Qt::ClickFocus</enum>
+  </property>
   <property name="windowTitle">
    <string>Dialog</string>
   </property>
@@ -36,7 +39,7 @@
    </property>
    <property name="font">
     <font>
-     <family>굴림</family>
+     <family>맑은 고딕</family>
      <pointsize>9</pointsize>
     </font>
    </property>
@@ -83,7 +86,7 @@
    </property>
    <property name="font">
     <font>
-     <family>굴림</family>
+     <family>맑은 고딕</family>
      <pointsize>9</pointsize>
     </font>
    </property>
@@ -225,7 +228,7 @@
    </property>
    <property name="font">
     <font>
-     <family>굴림</family>
+     <family>맑은 고딕</family>
      <pointsize>9</pointsize>
     </font>
    </property>
@@ -279,7 +282,7 @@
    </property>
    <property name="font">
     <font>
-     <family>굴림</family>
+     <family>맑은 고딕</family>
      <pointsize>9</pointsize>
     </font>
    </property>
@@ -365,12 +368,12 @@
    </property>
    <property name="font">
     <font>
-     <family>굴림</family>
+     <family>맑은 고딕</family>
      <pointsize>8</pointsize>
     </font>
    </property>
    <property name="text">
-    <string>*변동사항 확인시 프리징 현상이 발생합니다.</string>
+    <string>제작자: 오로라/창일</string>
    </property>
   </widget>
   <widget class="QPushButton" name="btn_github">
@@ -387,31 +390,6 @@
    </property>
    <property name="text">
     <string>Github</string>
-   </property>
-  </widget>
-  <widget class="QLabel" name="label_latestVersion">
-   <property name="geometry">
-    <rect>
-     <x>530</x>
-     <y>430</y>
-     <width>121</width>
-     <height>16</height>
-    </rect>
-   </property>
-   <property name="font">
-    <font>
-     <family>Arial</family>
-     <pointsize>8</pointsize>
-    </font>
-   </property>
-   <property name="layoutDirection">
-    <enum>Qt::LeftToRight</enum>
-   </property>
-   <property name="text">
-    <string>최신버전 v1.3.0</string>
-   </property>
-   <property name="alignment">
-    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
    </property>
   </widget>
  </widget>
