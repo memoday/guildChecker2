@@ -51,11 +51,15 @@ class compare(QThread):
 
         url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
         recentMemberList = []
-
         try:
             raw = requests.get(url,headers=header)
             html = BeautifulSoup(raw.text,"html.parser")
-            href = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr > td:nth-child(2) > span > a')['href']
+
+            checkRankTag = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr')['class']
+            if bool(checkRankTag) == False:
+                href = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr > td:nth-child(2) > span > a')['href']
+            else:
+                href = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr > td:nth-child(2) > span > dl > dt > a')['href']
 
             guildUrl = 'https://maplestory.nexon.com'+href
             pageNumber = 1
@@ -164,7 +168,12 @@ class execute(QThread):
         try:
             raw = requests.get(url,headers=header)
             html = BeautifulSoup(raw.text,"html.parser")
-            href = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr > td:nth-child(2) > span > a')['href']
+
+            checkRankTag = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr')['class']
+            if bool(checkRankTag) == False:
+                href = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr > td:nth-child(2) > span > a')['href']
+            else:
+                href = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr > td:nth-child(2) > span > dl > dt > a')['href']
 
             guildUrl = 'https://maplestory.nexon.com'+href
             pageNumber = 1
