@@ -32,6 +32,10 @@ def selectedWorld(worldName):
     return worldIndex
 
 class compare(QThread):
+
+    updateChangesListSignal = pyqtSignal(str)
+    updateStatusBarSignal = pyqtSignal(str)
+
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
@@ -39,14 +43,14 @@ class compare(QThread):
     def run(self):
         self.parent.btn_start.setDisabled(True)
         self.parent.btn_check.setDisabled(True)
-        self.parent.statusBar().showMessage('최신 길드원 정보 불러오는 중...')
+        self.updateStatusBarSignal.emit('최신 길드원 정보 불러오는 중...')
 
         worldName = str(self.parent.combo_serverName.currentText())
         worldNumber = selectedWorld(worldName)
 
         guildName = self.parent.input_guildName.text()
         if guildName == "" or len(guildName) < 2:
-            self.parent.statusBar().showMessage('변동사항 확인: 정확한 길드명을 입력해주세요')
+            self.updateStatusBarSignal.emit('변동사항 확인: 정확한 길드명을 입력해주세요')
             return
 
         url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
@@ -65,7 +69,7 @@ class compare(QThread):
             pageNumber = 1
 
             while True:
-                self.parent.statusBar().showMessage(f'{guildName} 최신 길드원 정보 추출 중: {pageNumber} /10')
+                self.updateStatusBarSignal.emit(f'{guildName} 최신 길드원 정보 추출 중: {pageNumber} /10')
                 guildUrlPage = guildUrl+f'&page={pageNumber}'
                 try:
                     r = requests.get(guildUrlPage,headers=header)
@@ -84,24 +88,24 @@ class compare(QThread):
                     print(f'최신 길드원 목록 - ({len(recentMemberList)}) 명')
                     print(recentMemberList)
 
-                    self.parent.statusBar().showMessage(f'변동사항 확인 중... {guildName}')
+                    self.updateStatusBarSignal.emit(f'변동사항 확인 중... {guildName}')
 
                     newcomerList, leaveList = self.checkChanges(recentMemberList)
                     for i in range(len(newcomerList)):
-                        self.parent.guildMembers_changed.append('[신규] '+newcomerList[i])
+                        self.updateChangesListSignal.emit('[신규] ' + newcomerList[i])
                     for i in range(len(leaveList)):
-                        self.parent.guildMembers_changed.append('[탈퇴] '+leaveList[i])
+                        self.updateChangesListSignal.emit('[탈퇴] ' + leaveList[i])
 
                     changeCount = len(newcomerList) + len(leaveList)
                     self.parent.changeCount.setText(str(changeCount)+' 명')
                     
-                    self.parent.statusBar().showMessage('변동사항 확인 완료 '+guildName)
+                    self.updateStatusBarSignal.emit('변동사항 확인 완료 '+guildName)
                     break
                 else:
                     pageNumber += 1
 
         except Exception as e:
-            self.parent.statusBar().showMessage(f'[ERROR] {e}')
+            self.updateStatusBarSignal.emit(f'[ERROR] {e}')
         
     def checkChanges(self,recentMemberList):
         # self.parent.guildMembers_changed.setText('')
@@ -129,6 +133,9 @@ class compare(QThread):
         return newcomerList, leaveList
 
 class execute(QThread):
+
+    updateStatusBarSignal = pyqtSignal(str)
+
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
@@ -138,14 +145,14 @@ class execute(QThread):
         self.parent.btn_check.setDisabled(True)
         self.parent.count.setText('- 명')
         self.parent.changeCount.setText('- 명')
-        self.parent.statusBar().showMessage('길드원 추출 준비 중..')
+        self.updateStatusBarSignal.emit('길드원 추출 준비 중..')
 
         worldName = str(self.parent.combo_serverName.currentText())
         worldNumber = selectedWorld(worldName)
 
         guildName = self.parent.input_guildName.text()
         if guildName == "" or len(guildName) < 2:
-            self.parent.statusBar().showMessage('추출하기: 정확한 길드명을 입력해주세요')
+            self.updateStatusBarSignal.emit('추출하기: 정확한 길드명을 입력해주세요')
             return
         
         now = datetime.datetime.now()
@@ -159,7 +166,7 @@ class execute(QThread):
         csv_file_path = os.path.join(folder_path, csv_file_name)
 
         if os.path.exists(csv_file_path): #파일이 존재하는 경우 작업 취소
-            self.parent.statusBar().showMessage('이미 존재하는 파일입니다')
+            self.updateStatusBarSignal.emit('이미 존재하는 파일입니다')
             return
 
         url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
@@ -179,7 +186,7 @@ class execute(QThread):
             pageNumber = 1
 
             while True:
-                self.parent.statusBar().showMessage(f'{guildName} 길드원 추출 중: {pageNumber} /10')
+                self.updateStatusBarSignal.emit(f'{guildName} 길드원 추출 중: {pageNumber} /10')
                 guildUrlPage = guildUrl+f'&page={pageNumber}'
                 try:
                     self.crawlMembers(guildUrlPage,membersList)
@@ -198,14 +205,14 @@ class execute(QThread):
                         for i in range(len(membersList)):
                             writer.writerow(membersList[i])
                     
-                    self.parent.statusBar().showMessage('추출하기 완료'+guildName)
+                    self.updateStatusBarSignal.emit('추출하기 완료 '+guildName)
 
                     break
                 else:
                     pageNumber += 1
 
         except Exception as e:
-            self.parent.statusBar().showMessage(f'[ERROR] {e}')
+            self.updateStatusBarSignal.emit(f'[ERROR] {e}')
         
     def crawlMembers(self,guildUrl,membersList):
         r = requests.get(guildUrl,headers=header)
@@ -235,10 +242,19 @@ class WindowClass(QMainWindow, form_class):
         self.btn_load.clicked.connect(self.fileLoad)
         self.btn_check.clicked.connect(self.checkInfo)
         self.btn_github.clicked.connect(self.github)
+
+    @pyqtSlot(str)
+    def updateChangesList(self, msg):
+        self.guildMembers_changed.append(msg)
+    
+    @pyqtSlot(str)
+    def updateStatusBar(self, msg):
+        self.statusBar().showMessage(msg)
     
     def main(self):
         self.guildMembers_changed.setText('')
         x = execute(self)
+        x.updateStatusBarSignal.connect(self.updateStatusBar)
         x.start()
         x.finished.connect(self.on_finished)
 
@@ -250,12 +266,12 @@ class WindowClass(QMainWindow, form_class):
         global oldGuildList
         fname = QFileDialog.getOpenFileName(self,'','','Excel(*.csv);;All File(*)')
         
-        self.guildMembers.setText('')
-        self.guildMembers_changed.setText('')
-        self.changeCount.setText('- 명')
-
         loadedFile = QFileInfo(fname[0]).fileName()
         if loadedFile != "":
+            self.guildMembers.setText('')
+            self.guildMembers_changed.setText('')
+            self.count.setText('- 명')
+            self.changeCount.setText('- 명')
             self.statusBar().showMessage('파일을 불러왔습니다. '+loadedFile)
         else:
             return
@@ -270,22 +286,29 @@ class WindowClass(QMainWindow, form_class):
         count = 0
         oldGuildList = []
         
-        if fname[0]:
-            with open(fname[0], newline='') as csvfile:
-                reader = csv.reader(csvfile, delimiter=',')
-                
-                count = 0
-                oldGuildList = []
+        try:
+            if fname[0]:
+                with open(fname[0], newline='') as csvfile:
+                    reader = csv.reader(csvfile, delimiter=',')
+                    
+                    count = 0
+                    oldGuildList = []
 
-                for row in reader:
-                    count += 1
-                    oldGuildList.append(row[0])
-                    self.guildMembers.append(row[0])
+                    for row in reader:
+                        count += 1
+                        oldGuildList.append(row[0])
+                        self.guildMembers.append(row[0])
+        except Exception as e:
+            print(e)
+            self.statusBar().showMessage(f'지원하지 않거나 손상된 파일입니다.')
+            return
 
         self.count.setText(str(count)+' 명')
 
     def checkInfo(self): #변동사항 확인
         y = compare(self)
+        y.updateChangesListSignal.connect(self.updateChangesList)
+        y.updateStatusBarSignal.connect(self.updateStatusBar)
         y.start()
         y.finished.connect(self.on_finished)
 
