@@ -9,7 +9,7 @@ from PyQt5.QtCore import *
 import webbrowser
 import csv
 
-__version__ = "v2.0.0"
+__version__ = "v2.0.1"
 
 header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Whale/3.18.154.13 Safari/537.36",
