@@ -198,7 +198,7 @@ class execute(QThread):
                     print(membersList)
                     print(len(membersList))
 
-                    with open(csv_file_path, 'w', newline='') as csvfile:
+                    with open(csv_file_path, 'w', newline='',encoding='utf-8-sig') as csvfile:
                         writer = csv.writer(csvfile)
                         for i in range(len(membersList)):
                             writer.writerow(membersList[i])
@@ -218,8 +218,12 @@ class execute(QThread):
         members = html.select('#container > div > div > table > tbody > tr')
         for member in members:
             nick = member.select_one('td.left > span > img')['alt']
-            # job = member.select_one('td.left > dl > dd').text #일부 직업들은 기사단/마법사/전사/해적 등으로 표시되어있음
-            membersList.append([nick])
+            job = member.select_one('td.left > dl > dd').text #일부 직업들은 기사단/마법사/전사/해적 등으로 표시되어있음
+            level = member.select_one('td:nth-child(3)').text
+            exp = member.select_one('td:nth-child(4)').text
+            fame = member.select_one('td:nth-child(5)').text
+
+            membersList.append([nick,job,level,exp,fame])
       
 class WindowClass(QMainWindow, form_class):
 
@@ -285,7 +289,19 @@ class WindowClass(QMainWindow, form_class):
         
         try:
             if fname[0]:
-                with open(fname[0], newline='') as csvfile:
+                with open(fname[0], newline='', encoding='utf-8') as csvfile:
+                    reader = csv.reader(csvfile, delimiter=',')
+                    
+                    count = 0
+                    oldGuildList = []
+
+                    for row in reader:
+                        count += 1
+                        oldGuildList.append(row[0])
+                        self.guildMembers.append(row[0])
+        except UnicodeDecodeError:
+            if fname[0]:
+                with open(fname[0], newline='', encoding='cp949') as csvfile:
                     reader = csv.reader(csvfile, delimiter=',')
                     
                     count = 0
