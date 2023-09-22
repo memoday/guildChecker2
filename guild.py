@@ -218,23 +218,20 @@ class execute(QThread):
         members = html.select('#container > div > div > table > tbody > tr')
         for member in members:
             nick = member.select_one('td.left > span > img')['alt']
-            job = member.select_one('td.left > dl > dd').text #직업군으로 표시되는 부분을 개선하기 위해 getRankingInfo function 활용해야함
+            # job = member.select_one('td.left > dl > dd').text #직업군으로 표시되는 부분을 개선하기 위해 getRankingInfo function 활용해야함
             level = member.select_one('td:nth-child(3)').text
             exp = member.select_one('td:nth-child(4)').text
             fame = member.select_one('td:nth-child(5)').text
             character_link = member.select_one('td.left > dl > dt > a')['href']
-            print(character_link)
-            rankData = self.getRankingInfo(nick,character_link)
+            jobAndRankData = self.getRankingInfo(nick,character_link)
 
-            while len(rankData) < 8:
-                rankData.append('')  # Add an empty string
+            while len(jobAndRankData) < 9:
+                jobAndRankData.append('')  # Add an empty string
 
-            print(nick+rankData[0]+'\n')
-
-            membersList.append([nick,job,level,exp,fame,rankData[0],rankData[1],rankData[2],rankData[3],rankData[4],rankData[5],rankData[6],rankData[7]])
+            membersList.append([nick,jobAndRankData[0],level,exp,fame,jobAndRankData[1],jobAndRankData[2],jobAndRankData[3],jobAndRankData[4],jobAndRankData[5],jobAndRankData[6],jobAndRankData[7],jobAndRankData[8]])
 
     def getRankingInfo(self,nickname,characterHref):
-        rankData = []
+        jobAndRankData = []
         characterHref = characterHref.replace("?p=","/Ranking?p=")
         character_link = f"https://maplestory.nexon.com{characterHref}"
 
@@ -242,17 +239,20 @@ class execute(QThread):
             r = requests.get(character_link,headers=header)
             html = BeautifulSoup(r.text,"html.parser")
 
+            job_details = html.select_one('#wrap > div.center_wrap > div.char_info_top > div.char_info > dl:nth-child(2) > dd').text
+            jobType, job = job_details.split("/")
+            jobAndRankData.append(job)
             rankDates = html.select('#container > div.con_wrap > div.contents_wrap > div > table > tbody > tr')
             for rankDate in rankDates:
                 date = rankDate.select_one('td.date').text
                 comprehensiveRanking = rankDate.select_one('td:nth-child(2)').text
 
                 rankingData = date+'R'+comprehensiveRanking
-                rankData.append(rankingData)
-            return rankData
+                jobAndRankData.append(rankingData)
+            return jobAndRankData
         except:
             print(f'{nickname} 랭킹정보를 불러올 수 없습니다.')
-            return rankData
+            return jobAndRankData
       
 class WindowClass(QMainWindow, form_class):
 
