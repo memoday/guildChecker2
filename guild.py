@@ -187,7 +187,7 @@ class execute(QThread):
                 self.updateStatusBarSignal.emit(f'{guildName} 길드원 추출 중: {pageNumber} /10')
                 guildUrlPage = guildUrl+f'&page={pageNumber}'
                 try:
-                    self.crawlMembers(guildUrlPage,membersList)
+                    self.crawlMembers(worldNumber,guildUrlPage,membersList)
                     print('크롤링한 페이지: ',pageNumber)
                 except Exception as e:
                     print(e)
@@ -212,7 +212,7 @@ class execute(QThread):
         except Exception as e:
             self.updateStatusBarSignal.emit(f'[ERROR] {e}')
         
-    def crawlMembers(self,guildUrl,membersList):
+    def crawlMembers(self,world,guildUrl,membersList):
         r = requests.get(guildUrl,headers=header)
         html = BeautifulSoup(r.text,"html.parser") 
         members = html.select('#container > div > div > table > tbody > tr')
@@ -222,8 +222,34 @@ class execute(QThread):
             level = member.select_one('td:nth-child(3)').text
             exp = member.select_one('td:nth-child(4)').text
             fame = member.select_one('td:nth-child(5)').text
+            rankData = self.getRankingInfo(nick,world)
 
-            membersList.append([nick,job,level,exp,fame])
+            membersList.append([nick,job,level,exp,fame,rankData[0],rankData[1],rankData[2],rankData[3],rankData[4],rankData[5],rankData[6],rankData[7]])
+
+    def getRankingInfo(self,nickname,world):
+        rankData = []
+        url = f"https://maplestory.nexon.com/N23Ranking/World/Total?c={nickname}&w={world}"
+        try:
+            raw = requests.get(url,headers=header)
+            html = BeautifulSoup(raw.text,"html.parser")
+            data = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr.search_com_chk > td.left > dl > dt > a')['href']
+            data = data.replace("?p=","/Ranking?p=")
+            character_link = f"https://maplestory.nexon.com{data}"
+        except Exception as e:
+            print(e)
+
+        r = requests.get(character_link,headers=header)
+        html = BeautifulSoup(r.text,"html.parser")
+
+        rankDates = html.select('#container > div.con_wrap > div.contents_wrap > div > table > tbody > tr')
+        for rankDate in rankDates:
+            date = rankDate.select_one('td.date').text
+            comprehensiveRanking = rankDate.select_one('td:nth-child(2)').text
+
+            rankingData = date+'R'+comprehensiveRanking
+            cleaned_string = rankingData.replace('.', '').replace(',', '')
+            rankData.append(rankingData)
+        return rankData
       
 class WindowClass(QMainWindow, form_class):
 
@@ -300,17 +326,22 @@ class WindowClass(QMainWindow, form_class):
                         oldGuildList.append(row[0])
                         self.guildMembers.append(row[0])
         except UnicodeDecodeError:
-            if fname[0]:
-                with open(fname[0], newline='', encoding='cp949') as csvfile:
-                    reader = csv.reader(csvfile, delimiter=',')
-                    
-                    count = 0
-                    oldGuildList = []
+            try:
+                if fname[0]:
+                    with open(fname[0], newline='', encoding='cp949') as csvfile:
+                        reader = csv.reader(csvfile, delimiter=',')
+                        
+                        count = 0
+                        oldGuildList = []
 
-                    for row in reader:
-                        count += 1
-                        oldGuildList.append(row[0])
-                        self.guildMembers.append(row[0])
+                        for row in reader:
+                            count += 1
+                            oldGuildList.append(row[0])
+                            self.guildMembers.append(row[0])
+            except Exception as e:
+                print(e)
+                self.statusBar().showMessage(f'지원하지 않거나 손상된 파일입니다.')
+                return
         except Exception as e:
             print(e)
             self.statusBar().showMessage(f'지원하지 않거나 손상된 파일입니다.')
