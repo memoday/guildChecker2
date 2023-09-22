@@ -187,10 +187,10 @@ class execute(QThread):
                 self.updateStatusBarSignal.emit(f'{guildName} 길드원 추출 중: {pageNumber} /10')
                 guildUrlPage = guildUrl+f'&page={pageNumber}'
                 try:
-                    self.crawlMembers(worldNumber,guildUrlPage,membersList)
+                    self.crawlMembers(guildUrlPage,membersList)
                     print('크롤링한 페이지: ',pageNumber)
                 except Exception as e:
-                    print(e)
+                    print("execute:"+e)
                     break
 
                 if pageNumber == 10:
@@ -212,44 +212,47 @@ class execute(QThread):
         except Exception as e:
             self.updateStatusBarSignal.emit(f'[ERROR] {e}')
         
-    def crawlMembers(self,world,guildUrl,membersList):
+    def crawlMembers(self,guildUrl,membersList):
         r = requests.get(guildUrl,headers=header)
         html = BeautifulSoup(r.text,"html.parser") 
         members = html.select('#container > div > div > table > tbody > tr')
         for member in members:
             nick = member.select_one('td.left > span > img')['alt']
-            job = member.select_one('td.left > dl > dd').text #일부 직업들은 기사단/마법사/전사/해적 등으로 표시되어있음
+            job = member.select_one('td.left > dl > dd').text #직업군으로 표시되는 부분을 개선하기 위해 getRankingInfo function 활용해야함
             level = member.select_one('td:nth-child(3)').text
             exp = member.select_one('td:nth-child(4)').text
             fame = member.select_one('td:nth-child(5)').text
-            rankData = self.getRankingInfo(nick,world)
+            character_link = member.select_one('td.left > dl > dt > a')['href']
+            print(character_link)
+            rankData = self.getRankingInfo(nick,character_link)
+
+            while len(rankData) < 8:
+                rankData.append('')  # Add an empty string
+
+            print(nick+rankData[0]+'\n')
 
             membersList.append([nick,job,level,exp,fame,rankData[0],rankData[1],rankData[2],rankData[3],rankData[4],rankData[5],rankData[6],rankData[7]])
 
-    def getRankingInfo(self,nickname,world):
+    def getRankingInfo(self,nickname,characterHref):
         rankData = []
-        url = f"https://maplestory.nexon.com/N23Ranking/World/Total?c={nickname}&w={world}"
+        characterHref = characterHref.replace("?p=","/Ranking?p=")
+        character_link = f"https://maplestory.nexon.com{characterHref}"
+
         try:
-            raw = requests.get(url,headers=header)
-            html = BeautifulSoup(raw.text,"html.parser")
-            data = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr.search_com_chk > td.left > dl > dt > a')['href']
-            data = data.replace("?p=","/Ranking?p=")
-            character_link = f"https://maplestory.nexon.com{data}"
-        except Exception as e:
-            print(e)
+            r = requests.get(character_link,headers=header)
+            html = BeautifulSoup(r.text,"html.parser")
 
-        r = requests.get(character_link,headers=header)
-        html = BeautifulSoup(r.text,"html.parser")
+            rankDates = html.select('#container > div.con_wrap > div.contents_wrap > div > table > tbody > tr')
+            for rankDate in rankDates:
+                date = rankDate.select_one('td.date').text
+                comprehensiveRanking = rankDate.select_one('td:nth-child(2)').text
 
-        rankDates = html.select('#container > div.con_wrap > div.contents_wrap > div > table > tbody > tr')
-        for rankDate in rankDates:
-            date = rankDate.select_one('td.date').text
-            comprehensiveRanking = rankDate.select_one('td:nth-child(2)').text
-
-            rankingData = date+'R'+comprehensiveRanking
-            cleaned_string = rankingData.replace('.', '').replace(',', '')
-            rankData.append(rankingData)
-        return rankData
+                rankingData = date+'R'+comprehensiveRanking
+                rankData.append(rankingData)
+            return rankData
+        except:
+            print(f'{nickname} 랭킹정보를 불러올 수 없습니다.')
+            return rankData
       
 class WindowClass(QMainWindow, form_class):
 
