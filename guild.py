@@ -9,7 +9,7 @@ from PyQt5.QtCore import *
 import webbrowser
 import csv
 
-__version__ = "v2.0.1"
+__version__ = "v2.1.0"
 
 header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Whale/3.18.154.13 Safari/537.36",
@@ -60,17 +60,26 @@ class compareCSV(QThread):
         if not os.path.isdir(folder_path): #폴더가 존재하지 않는 경우 폴더 생성
             os.mkdir(folder_path)
 
-        old_csv_file_path = os.path.join(folder_path,'오로라_부계정_2023-09-22.csv')
+        old_csv_file_path = os.path.join(folder_path,'스카니아_잔망_2023-09-22.csv')
         csv_file_path = os.path.join(folder_path, csv_file_name)
 
         if os.path.exists(csv_file_path) == False: #파일이 존재하는 않는 경우 새로 크롤링
             self.startCrawl(guildName,worldNumber,csv_file_path)
-            self.compare(old_csv_file_path,csv_file_path)
-            return
+
+        nickChangedList,newMembersList,leavedMembersList = self.compare(old_csv_file_path,csv_file_path)
+
+        for i in range(len(newMembersList)):
+            self.updateChangesListSignal.emit('[신규] ' + newMembersList[i])
+        for i in range(len(leavedMembersList)):
+            self.updateChangesListSignal.emit('[탈퇴] ' + leavedMembersList[i])
+        for i in range(len(nickChangedList)):
+            self.updateChangesListSignal.emit('[닉변] ' + nickChangedList[i][0] + ' -> ' + nickChangedList[i][1])
+
+        changeCount = len(newMembersList) + len(leavedMembersList)
+        self.parent.changeCount.setText(str(changeCount)+' 명')
         
-        else:
-            self.compare(old_csv_file_path,csv_file_path)
-        
+        self.updateStatusBarSignal.emit('변동사항 확인 완료 '+guildName)
+    
     def startCrawl(self,guildName,worldNumber,csv_file_path):
         url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
         membersList = []
@@ -99,9 +108,6 @@ class compareCSV(QThread):
                     break
 
                 if pageNumber == 10:
-
-                    print(membersList)
-                    print(len(membersList))
 
                     with open(csv_file_path, 'w', newline='',encoding='utf-8-sig') as csvfile:
                         writer = csv.writer(csvfile)
@@ -190,8 +196,11 @@ class compareCSV(QThread):
         for nickname1, rankdata_list1 in removed_nicknames_dict.items():
             for rankdata1 in rankdata_list1:
                 if rankdata1 in dict2_reverse:
+                    if rankdata1 == '':
+                        continue
                     nickname2 = dict2_reverse[rankdata1]
                     matches.append([nickname1, nickname2])
+                    break
 
         for old_nick, new_nick in matches:
             if old_nick in removed_nicknames_dict:
@@ -199,12 +208,15 @@ class compareCSV(QThread):
             if new_nick in new_nicknames_dict:
                 del new_nicknames_dict[new_nick]
 
-        print(matches)
-        print(new_nicknames_dict)
-        print(removed_nicknames_dict)
+        removed_nicknames_key = list(removed_nicknames_dict.keys())
+        new_nicknames_key = list(new_nicknames_dict.keys())
 
-        
+        print(f'닉네임 변경: {matches}')
+        print(f'신규 길드원: {new_nicknames_key}')
+        print(f'탈퇴 길드원: {removed_nicknames_key}')
 
+        return matches, new_nicknames_key, removed_nicknames_key
+   
 class compare(QThread):
 
     updateChangesListSignal = pyqtSignal(str)
@@ -455,7 +467,7 @@ class WindowClass(QMainWindow, form_class):
     @pyqtSlot(str)
     def updateStatusBar(self, msg):
         self.statusBar().showMessage(msg)
-    
+        
     def main(self):
         x = execute(self)
         x.updateStatusBarSignal.connect(self.updateStatusBar)
@@ -527,6 +539,7 @@ class WindowClass(QMainWindow, form_class):
         self.count.setText(str(count)+' 명')
 
     def checkInfo(self): #변동사항 확인
+        self.guildMembers_changed.setText('')
         y = compareCSV(self)
         y.updateChangesListSignal.connect(self.updateChangesList)
         y.updateStatusBarSignal.connect(self.updateStatusBar)
