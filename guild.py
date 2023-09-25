@@ -31,6 +31,180 @@ def selectedWorld(worldName):
     worldIndex = world.index(worldName)
     return worldIndex
 
+class compareCSV(QThread):
+    updateChangesListSignal = pyqtSignal(str)
+    updateStatusBarSignal = pyqtSignal(str)
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        
+    def run(self):
+        self.parent.btn_start.setDisabled(True)
+        self.parent.btn_check.setDisabled(True)
+        self.updateStatusBarSignal.emit('길드원 추출 준비 중..')
+
+        worldName = str(self.parent.combo_serverName.currentText())
+        worldNumber = selectedWorld(worldName)
+
+        guildName = self.parent.input_guildName.text()
+        if guildName == "" or len(guildName) < 2:
+            self.updateStatusBarSignal.emit('추출하기: 정확한 길드명을 입력해주세요')
+            return
+        
+        now = datetime.datetime.now()
+        now = now.strftime('%Y-%m-%d')
+        folder_path = "GuildData"
+        csv_file_name = f'{worldName}_{guildName}_{now}.csv'
+
+        if not os.path.isdir(folder_path): #폴더가 존재하지 않는 경우 폴더 생성
+            os.mkdir(folder_path)
+
+        old_csv_file_path = os.path.join(folder_path,'오로라_부계정_2023-09-22.csv')
+        csv_file_path = os.path.join(folder_path, csv_file_name)
+
+        if os.path.exists(csv_file_path) == False: #파일이 존재하는 않는 경우 새로 크롤링
+            self.startCrawl(guildName,worldNumber,csv_file_path)
+            self.compare(old_csv_file_path,csv_file_path)
+            return
+        
+        else:
+            self.compare(old_csv_file_path,csv_file_path)
+        
+    def startCrawl(self,guildName,worldNumber,csv_file_path):
+        url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
+        membersList = []
+
+        try:
+            raw = requests.get(url,headers=header)
+            html = BeautifulSoup(raw.text,"html.parser")
+
+            checkRankTag = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr')['class']
+            if bool(checkRankTag) == False:
+                href = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr > td:nth-child(2) > span > a')['href']
+            else:
+                href = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr > td:nth-child(2) > span > dl > dt > a')['href']
+
+            guildUrl = 'https://maplestory.nexon.com'+href
+            pageNumber = 1
+
+            while True:
+                self.updateStatusBarSignal.emit(f'{guildName} 길드원 추출 중: {pageNumber} /10')
+                guildUrlPage = guildUrl+f'&page={pageNumber}'
+                try:
+                    self.crawlMembers(guildUrlPage,membersList)
+                    print('크롤링한 페이지: ',pageNumber)
+                except Exception as e:
+                    print("execute:"+e)
+                    break
+
+                if pageNumber == 10:
+
+                    print(membersList)
+                    print(len(membersList))
+
+                    with open(csv_file_path, 'w', newline='',encoding='utf-8-sig') as csvfile:
+                        writer = csv.writer(csvfile)
+                        for i in range(len(membersList)):
+                            writer.writerow(membersList[i])
+                    
+                    self.updateStatusBarSignal.emit('추출하기 완료 '+guildName)
+
+                    break
+                else:
+                    pageNumber += 1
+
+        except Exception as e:
+            self.updateStatusBarSignal.emit(f'[ERROR] {e}')
+
+    def crawlMembers(self,guildUrl,membersList):
+        r = requests.get(guildUrl,headers=header)
+        html = BeautifulSoup(r.text,"html.parser") 
+        members = html.select('#container > div > div > table > tbody > tr')
+        for member in members:
+            nick = member.select_one('td.left > span > img')['alt']
+            # job = member.select_one('td.left > dl > dd').text #직업군으로 표시되는 부분을 개선하기 위해 getRankingInfo function 활용해야함
+            level = member.select_one('td:nth-child(3)').text
+            exp = member.select_one('td:nth-child(4)').text
+            fame = member.select_one('td:nth-child(5)').text
+            character_link = member.select_one('td.left > dl > dt > a')['href']
+            jobAndRankData = self.getRankingInfo(nick,character_link)
+
+            while len(jobAndRankData) < 9:
+                jobAndRankData.append('')  # Add an empty string
+
+            membersList.append([nick,jobAndRankData[0],level,exp,fame,jobAndRankData[1],jobAndRankData[2],jobAndRankData[3],jobAndRankData[4],jobAndRankData[5],jobAndRankData[6],jobAndRankData[7],jobAndRankData[8]])
+
+    def getRankingInfo(self,nickname,characterHref):
+        jobAndRankData = []
+        characterHref = characterHref.replace("?p=","/Ranking?p=")
+        character_link = f"https://maplestory.nexon.com{characterHref}"
+
+        try:
+            r = requests.get(character_link,headers=header)
+            html = BeautifulSoup(r.text,"html.parser")
+
+            job_details = html.select_one('#wrap > div.center_wrap > div.char_info_top > div.char_info > dl:nth-child(2) > dd').text
+            jobType, job = job_details.split("/")
+            jobAndRankData.append(job)
+            rankDates = html.select('#container > div.con_wrap > div.contents_wrap > div > table > tbody > tr')
+            for rankDate in rankDates:
+                date = rankDate.select_one('td.date').text
+                comprehensiveRanking = rankDate.select_one('td:nth-child(2)').text
+
+                rankingData = date+'R'+comprehensiveRanking
+                jobAndRankData.append(rankingData)
+            return jobAndRankData
+        except:
+            print(f'{nickname} 랭킹정보를 불러올 수 없습니다.')
+            return jobAndRankData
+
+    def read_csv_into_dict(self, file_path):
+        data_dict = {}
+        with open(file_path, 'r', newline='', encoding='utf-8-sig') as csv_file:
+            csv_reader = csv.reader(csv_file)
+            # Skip the header row if needed
+            header = next(csv_reader)  # Read and discard the header row
+            for row in csv_reader:
+                nickname = row[0]
+                rank_data = []
+                for i in range(5, 13):  # Columns for 'rank1' to 'rank8'
+                    rank_data.append(row[i] if len(row) > i else '')  # Check if rank column exists
+                data_dict[nickname] = {'rankdata': rank_data}
+        return data_dict
+
+    def compare(self,old_csv_file_path,csv_file_path):
+        old_csv_dict = self.read_csv_into_dict(old_csv_file_path)
+        new_csv_dict = self.read_csv_into_dict(csv_file_path)
+
+        new_nicknames_dict = {nickname: new_csv_dict[nickname]['rankdata'] for nickname in new_csv_dict if nickname not in old_csv_dict}
+        removed_nicknames_dict = {nickname: old_csv_dict[nickname]['rankdata'] for nickname in old_csv_dict if nickname not in new_csv_dict}
+
+        dict2_reverse = {}
+        for nickname, rankdata_list in new_nicknames_dict.items():
+            for rankdata in rankdata_list:
+                dict2_reverse[rankdata] = nickname
+
+        # Find matches
+        matches = []
+        for nickname1, rankdata_list1 in removed_nicknames_dict.items():
+            for rankdata1 in rankdata_list1:
+                if rankdata1 in dict2_reverse:
+                    nickname2 = dict2_reverse[rankdata1]
+                    matches.append([nickname1, nickname2])
+
+        for old_nick, new_nick in matches:
+            if old_nick in removed_nicknames_dict:
+                del removed_nicknames_dict[old_nick]
+            if new_nick in new_nicknames_dict:
+                del new_nicknames_dict[new_nick]
+
+        print(matches)
+        print(new_nicknames_dict)
+        print(removed_nicknames_dict)
+
+        
+
 class compare(QThread):
 
     updateChangesListSignal = pyqtSignal(str)
@@ -353,7 +527,7 @@ class WindowClass(QMainWindow, form_class):
         self.count.setText(str(count)+' 명')
 
     def checkInfo(self): #변동사항 확인
-        y = compare(self)
+        y = compareCSV(self)
         y.updateChangesListSignal.connect(self.updateChangesList)
         y.updateStatusBarSignal.connect(self.updateStatusBar)
         y.start()
