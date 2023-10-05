@@ -533,7 +533,7 @@
      <string>추출하기</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="btn_github">
+   <widget class="QPushButton" name="btn_discord">
     <property name="geometry">
      <rect>
       <x>20</x>
@@ -546,10 +546,10 @@
      <enum>Qt::NoFocus</enum>
     </property>
     <property name="text">
-     <string>Github</string>
+     <string>Discord</string>
     </property>
    </widget>
-   <widget class="QCheckBox" name="advancedMode">
+   <widget class="QCheckBox" name="easyMode">
     <property name="geometry">
      <rect>
       <x>30</x>

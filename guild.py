@@ -63,8 +63,12 @@ class compareCSV(QThread):
         old_csv_file_path = os.path.join(folder_path,fname)
         csv_file_path = os.path.join(folder_path, csv_file_name)
 
+        if os.path.exists(old_csv_file_path) == False: #불러온 길드 파일이 존재하지 않는 경우
+            self.updateStatusBarSignal.emit('길드 파일이 존재하지 않습니다.')
+            return
+
         if os.path.exists(csv_file_path) == False: #파일이 존재하는 않는 경우 새로 크롤링
-            print('최신 버전의 파일이 존재하지 않습니다. 새로 크롤링합니다.')
+            print('최신 길드 정보 파일이 없어 최신 길드 정보를 추출합니다.')
             try:
                 self.startCrawl(guildName,worldNumber,csv_file_path)
             except requests.exceptions.RequestException:
@@ -77,7 +81,11 @@ class compareCSV(QThread):
                 self.updateStatusBarSignal.emit('알 수 없는 오류가 발생했습니다.')
                 return
 
-        nickChangedList,newMembersList,leavedMembersList = self.compare(old_csv_file_path,csv_file_path)
+        try:
+            nickChangedList,newMembersList,leavedMembersList = self.compare(old_csv_file_path,csv_file_path)
+        except UnicodeDecodeError:
+            self.updateStatusBarSignal.emit('지원하지 않거나 손상된 파일입니다.')
+            return
 
         for i in range(len(newMembersList)):
             self.updateChangesListSignal.emit('[신규] ' + newMembersList[i])
@@ -193,27 +201,22 @@ class compareCSV(QThread):
 
     def read_csv_into_dict(self, file_path):
         data_dict = {}
-        try:
-            with open(file_path, 'r', newline='', encoding='utf-8-sig') as csv_file:
-                csv_reader = csv.reader(csv_file)
-                # Skip the header row if needed
-                header = next(csv_reader)  # Read and discard the header row
-                for row in csv_reader:
-                    nickname = row[0]
-                    rank_data = []
-                    for i in range(5, 13):  # Columns for 'rank1' to 'rank8'
-                        rank_data.append(row[i] if len(row) > i else '')  # Check if rank column exists
-                    data_dict[nickname] = {'rankdata': rank_data}
-            return data_dict
-        except FileNotFoundError:
-            self.updateStatusBarSignal.emit(f'파일을 찾을 수 없습니다: {file_path}')
+        with open(file_path, 'r', newline='', encoding='utf-8-sig') as csv_file:
+            csv_reader = csv.reader(csv_file)
+            # Skip the header row if needed
+            header = next(csv_reader)  # Read and discard the header row
+            for row in csv_reader:
+                nickname = row[0]
+                rank_data = []
+                for i in range(5, 13):  # Columns for 'rank1' to 'rank8'
+                    rank_data.append(row[i] if len(row) > i else '')  # Check if rank column exists
+                data_dict[nickname] = {'rankdata': rank_data}
+        return data_dict
 
     def compare(self,old_csv_file_path,csv_file_path):
         old_csv_dict = self.read_csv_into_dict(old_csv_file_path)
         new_csv_dict = self.read_csv_into_dict(csv_file_path)
 
-        print(old_csv_dict)
-        print(new_csv_dict)
         new_nicknames_dict = {nickname: new_csv_dict[nickname]['rankdata'] for nickname in new_csv_dict if nickname not in old_csv_dict}
         removed_nicknames_dict = {nickname: old_csv_dict[nickname]['rankdata'] for nickname in old_csv_dict if nickname not in new_csv_dict}
 
@@ -248,10 +251,6 @@ class compareCSV(QThread):
 
         return matches, new_nicknames_key, removed_nicknames_key
    
-    def stop(self):
-        # Emit the stop signal to request thread termination
-        self.stop_signal.emit()
-
 class execute(QThread):
 
     updateStatusBarSignal = pyqtSignal(str)
@@ -392,7 +391,7 @@ class WindowClass(QMainWindow, form_class):
         self.btn_start.clicked.connect(self.main)
         self.btn_load.clicked.connect(self.fileLoad)
         self.btn_check.clicked.connect(self.checkInfo)
-        self.btn_github.clicked.connect(self.github)
+        self.btn_discord.clicked.connect(self.discord)
 
     @pyqtSlot(str)
     def updateChangesList(self, msg):
@@ -413,10 +412,15 @@ class WindowClass(QMainWindow, form_class):
         self.btn_check.setEnabled(True)
 
     def fileLoad(self): #파일 불러오기
-        global oldGuildList
         global fname
         
-        fname, _ = QFileDialog.getOpenFileName(self,'','','Excel(*.csv);;All File(*)')
+        script_dir = os.path.dirname(os.path.abspath(__file__))  # Get the directory where your script is located
+        initial_dir = os.path.join(script_dir, "GuildData")
+
+        if not os.path.exists(initial_dir):
+            initial_dir = script_dir
+
+        fname, _ = QFileDialog.getOpenFileName(self,'',initial_dir,'Excel(*.csv);;All File(*)')
         loadedFile = QFileInfo(fname).fileName()
         if loadedFile != "":
             print(fname)
@@ -445,8 +449,8 @@ class WindowClass(QMainWindow, form_class):
         y.start()
         y.finished.connect(self.on_finished)
 
-    def github(self):
-        webbrowser.open_new_tab('https://github.com/memoday/guildChecker2')
+    def discord(self):
+        webbrowser.open_new_tab('https://discord.gg/GTXVQqqTT2')
 
     def closeEvent(self, event):
         sys.exit(0)
