@@ -49,7 +49,7 @@ class compareCSV(QThread):
 
         guildName = self.parent.input_guildName.text()
         if guildName == "" or len(guildName) < 2:
-            self.updateStatusBarSignal.emit('추출하기: 정확한 길드명을 입력해주세요')
+            self.updateStatusBarSignal.emit('추출하기: 정확한 길드명을 입력해주세요.')
             return
         
         now = datetime.datetime.now()
@@ -60,7 +60,11 @@ class compareCSV(QThread):
         if not os.path.isdir(folder_path): #폴더가 존재하지 않는 경우 폴더 생성
             os.mkdir(folder_path)
 
-        old_csv_file_path = os.path.join(folder_path,fname)
+        try:
+            old_csv_file_path = os.path.join(folder_path,fname)
+        except NameError:
+            self.updateStatusBarSignal.emit('길드 파일을 불러와주세요.')
+            return
         csv_file_path = os.path.join(folder_path, csv_file_name)
 
         if os.path.exists(old_csv_file_path) == False: #불러온 길드 파일이 존재하지 않는 경우
@@ -101,7 +105,7 @@ class compareCSV(QThread):
         self.parent.changedCounts.setText(str(len(nickChangedList)))
 
         
-        self.updateStatusBarSignal.emit('변동사항 확인 완료 '+guildName)
+        self.updateStatusBarSignal.emit('변동사항 확인 완료. '+guildName)
     
     def startCrawl(self,guildName,worldNumber,csv_file_path):
         url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
@@ -269,7 +273,7 @@ class execute(QThread):
 
         guildName = self.parent.input_guildName.text()
         if guildName == "" or len(guildName) < 2:
-            self.updateStatusBarSignal.emit('추출하기: 정확한 길드명을 입력해주세요')
+            self.updateStatusBarSignal.emit('추출하기: 정확한 길드명을 입력해주세요.')
             return
         
         now = datetime.datetime.now()
@@ -283,7 +287,7 @@ class execute(QThread):
         csv_file_path = os.path.join(folder_path, csv_file_name)
 
         if os.path.exists(csv_file_path): #파일이 존재하는 경우 작업 취소
-            self.updateStatusBarSignal.emit('이미 존재하는 파일입니다')
+            self.updateStatusBarSignal.emit('최신 길드 데이터 파일이 이미 존재합니다.')
             return
 
         url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
@@ -409,12 +413,16 @@ class WindowClass(QMainWindow, form_class):
 
     def on_finished(self):
         self.btn_start.setEnabled(True)
-        self.btn_check.setEnabled(True)
+        try:
+            fname
+            self.btn_check.setEnabled(True)
+        except NameError:
+            self.btn_check.setEnabled(False)
 
     def fileLoad(self): #파일 불러오기
         global fname
         
-        script_dir = os.path.dirname(os.path.abspath(__file__))  # Get the directory where your script is located
+        script_dir = os.path.abspath(os.path.dirname(sys.argv[0]))
         initial_dir = os.path.join(script_dir, "GuildData")
 
         if not os.path.exists(initial_dir):
