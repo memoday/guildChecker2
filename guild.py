@@ -60,11 +60,22 @@ class compareCSV(QThread):
         if not os.path.isdir(folder_path): #폴더가 존재하지 않는 경우 폴더 생성
             os.mkdir(folder_path)
 
-        old_csv_file_path = os.path.join(folder_path,'스카니아_잔망_2023-09-22.csv')
+        old_csv_file_path = os.path.join(folder_path,fname)
         csv_file_path = os.path.join(folder_path, csv_file_name)
 
         if os.path.exists(csv_file_path) == False: #파일이 존재하는 않는 경우 새로 크롤링
-            self.startCrawl(guildName,worldNumber,csv_file_path)
+            print('최신 버전의 파일이 존재하지 않습니다. 새로 크롤링합니다.')
+            try:
+                self.startCrawl(guildName,worldNumber,csv_file_path)
+            except requests.exceptions.RequestException:
+                self.updateStatusBarSignal.emit('서버에 접속하는 중 오류가 발생했습니다. 나중에 다시 시도 해주세요.')
+                return
+            except TypeError:
+                self.updateStatusBarSignal.emit('길드 랭킹에서 해당 길드를 찾을 수 없습니다.')
+                return
+            except:
+                self.updateStatusBarSignal.emit('알 수 없는 오류가 발생했습니다.')
+                return
 
         nickChangedList,newMembersList,leavedMembersList = self.compare(old_csv_file_path,csv_file_path)
 
@@ -75,8 +86,12 @@ class compareCSV(QThread):
         for i in range(len(nickChangedList)):
             self.updateChangesListSignal.emit('[닉변] ' + nickChangedList[i][0] + ' -> ' + nickChangedList[i][1])
 
-        changeCount = len(newMembersList) + len(leavedMembersList)
-        self.parent.changeCount.setText(str(changeCount)+' 명')
+        changeCount = len(newMembersList) + len(leavedMembersList) + len(nickChangedList)
+
+        self.parent.newCounts.setText(str(len(newMembersList)))
+        self.parent.leavedCounts.setText(str(len(leavedMembersList)))
+        self.parent.changedCounts.setText(str(len(nickChangedList)))
+
         
         self.updateStatusBarSignal.emit('변동사항 확인 완료 '+guildName)
     
@@ -89,10 +104,13 @@ class compareCSV(QThread):
             html = BeautifulSoup(raw.text,"html.parser")
 
             checkRankTag = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr')['class']
+
             if bool(checkRankTag) == False:
                 href = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr > td:nth-child(2) > span > a')['href']
             else:
                 href = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr > td:nth-child(2) > span > dl > dt > a')['href']
+
+
 
             guildUrl = 'https://maplestory.nexon.com'+href
             pageNumber = 1
@@ -120,8 +138,16 @@ class compareCSV(QThread):
                 else:
                     pageNumber += 1
 
+        except requests.exceptions.RequestException as e:
+            print(e)
+            raise e
+
+        except TypeError:
+            raise TypeError
+
         except Exception as e:
             self.updateStatusBarSignal.emit(f'[ERROR] {e}')
+            raise e
 
     def crawlMembers(self,guildUrl,membersList):
         r = requests.get(guildUrl,headers=header)
@@ -167,22 +193,27 @@ class compareCSV(QThread):
 
     def read_csv_into_dict(self, file_path):
         data_dict = {}
-        with open(file_path, 'r', newline='', encoding='utf-8-sig') as csv_file:
-            csv_reader = csv.reader(csv_file)
-            # Skip the header row if needed
-            header = next(csv_reader)  # Read and discard the header row
-            for row in csv_reader:
-                nickname = row[0]
-                rank_data = []
-                for i in range(5, 13):  # Columns for 'rank1' to 'rank8'
-                    rank_data.append(row[i] if len(row) > i else '')  # Check if rank column exists
-                data_dict[nickname] = {'rankdata': rank_data}
-        return data_dict
+        try:
+            with open(file_path, 'r', newline='', encoding='utf-8-sig') as csv_file:
+                csv_reader = csv.reader(csv_file)
+                # Skip the header row if needed
+                header = next(csv_reader)  # Read and discard the header row
+                for row in csv_reader:
+                    nickname = row[0]
+                    rank_data = []
+                    for i in range(5, 13):  # Columns for 'rank1' to 'rank8'
+                        rank_data.append(row[i] if len(row) > i else '')  # Check if rank column exists
+                    data_dict[nickname] = {'rankdata': rank_data}
+            return data_dict
+        except FileNotFoundError:
+            self.updateStatusBarSignal.emit(f'파일을 찾을 수 없습니다: {file_path}')
 
     def compare(self,old_csv_file_path,csv_file_path):
         old_csv_dict = self.read_csv_into_dict(old_csv_file_path)
         new_csv_dict = self.read_csv_into_dict(csv_file_path)
 
+        print(old_csv_dict)
+        print(new_csv_dict)
         new_nicknames_dict = {nickname: new_csv_dict[nickname]['rankdata'] for nickname in new_csv_dict if nickname not in old_csv_dict}
         removed_nicknames_dict = {nickname: old_csv_dict[nickname]['rankdata'] for nickname in old_csv_dict if nickname not in new_csv_dict}
 
@@ -217,106 +248,9 @@ class compareCSV(QThread):
 
         return matches, new_nicknames_key, removed_nicknames_key
    
-class compare(QThread):
-
-    updateChangesListSignal = pyqtSignal(str)
-    updateStatusBarSignal = pyqtSignal(str)
-
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.parent = parent
-    
-    def run(self):
-        self.parent.btn_start.setDisabled(True)
-        self.parent.btn_check.setDisabled(True)
-        self.updateStatusBarSignal.emit('최신 길드원 정보 불러오는 중...')
-
-        worldName = str(self.parent.combo_serverName.currentText())
-        worldNumber = selectedWorld(worldName)
-
-        guildName = self.parent.input_guildName.text()
-        if guildName == "" or len(guildName) < 2:
-            self.updateStatusBarSignal.emit('변동사항 확인: 정확한 길드명을 입력해주세요')
-            return
-
-        url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
-        recentMemberList = []
-        try:
-            raw = requests.get(url,headers=header)
-            html = BeautifulSoup(raw.text,"html.parser")
-
-            checkRankTag = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr')['class']
-            if bool(checkRankTag) == False:
-                href = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr > td:nth-child(2) > span > a')['href']
-            else:
-                href = html.select_one('#container > div > div > div:nth-child(4) > div.rank_table_wrap > table > tbody > tr > td:nth-child(2) > span > dl > dt > a')['href']
-
-            guildUrl = 'https://maplestory.nexon.com'+href
-            pageNumber = 1
-
-            while True:
-                self.updateStatusBarSignal.emit(f'{guildName} 최신 길드원 정보 추출 중: {pageNumber} /10')
-                guildUrlPage = guildUrl+f'&page={pageNumber}'
-                try:
-                    r = requests.get(guildUrlPage,headers=header)
-                    html = BeautifulSoup(r.text,"html.parser") 
-                    members = html.select('#container > div > div > table > tbody > tr')
-                    for member in members:
-                        nick = member.select_one('td.left > span > img')['alt']
-                        # job = member.select_one('td.left > dl > dd').text #일부 직업들은 기사단/마법사/전사/해적 등으로 표시되어있음
-                        recentMemberList.append([nick][0])
-                    print('크롤링한 페이지: ',pageNumber)
-                except Exception as e:
-                    print(e)
-                    break
-
-                if pageNumber == 10:
-                    print(f'최신 길드원 목록 - ({len(recentMemberList)}) 명')
-                    print(recentMemberList)
-
-                    self.updateStatusBarSignal.emit(f'변동사항 확인 중... {guildName}')
-
-                    newcomerList, leaveList = self.checkChanges(recentMemberList)
-                    for i in range(len(newcomerList)):
-                        self.updateChangesListSignal.emit('[신규] ' + newcomerList[i])
-                    for i in range(len(leaveList)):
-                        self.updateChangesListSignal.emit('[탈퇴] ' + leaveList[i])
-
-                    changeCount = len(newcomerList) + len(leaveList)
-                    self.parent.changeCount.setText(str(changeCount)+' 명')
-                    
-                    self.updateStatusBarSignal.emit('변동사항 확인 완료 '+guildName)
-                    break
-                else:
-                    pageNumber += 1
-
-        except Exception as e:
-            self.updateStatusBarSignal.emit(f'[ERROR] {e}')
-        
-    def checkChanges(self,recentMemberList):
-        # self.parent.guildMembers_changed.setText('')
-        set1 = set(recentMemberList)
-        set2 = set(oldGuildList)
-        changeCount = 0
-        
-        guildIn = list(set1 - set2)
-        guildOut = list(set2 - set1)
-
-        newcomerList = []
-        trackList = [] #닉변 추적 기능 임시 비활성화, 기존 길드 = 변경 길드 일 경우 찾을 수 없음으로 표기
-        leaveList = []
-
-        for i in range(len(guildIn)):
-            print('[신규]',guildIn[i])
-            newcomerList.append(guildIn[i])
-            changeCount += 1
-        
-        for i in range(len(guildOut)):
-            print('[탈퇴]',guildOut[i])
-            leaveList.append(guildOut[i])
-            changeCount += 1
-
-        return newcomerList, leaveList
+    def stop(self):
+        # Emit the stop signal to request thread termination
+        self.stop_signal.emit()
 
 class execute(QThread):
 
@@ -480,15 +414,19 @@ class WindowClass(QMainWindow, form_class):
 
     def fileLoad(self): #파일 불러오기
         global oldGuildList
-        fname = QFileDialog.getOpenFileName(self,'','','Excel(*.csv);;All File(*)')
+        global fname
         
-        loadedFile = QFileInfo(fname[0]).fileName()
+        fname, _ = QFileDialog.getOpenFileName(self,'','','Excel(*.csv);;All File(*)')
+        loadedFile = QFileInfo(fname).fileName()
         if loadedFile != "":
-            self.guildMembers.setText('')
+            print(fname)
             self.guildMembers_changed.setText('')
-            self.count.setText('- 명')
-            self.changeCount.setText('- 명')
+            self.newCounts.setText('-')
+            self.leavedCounts.setText('-')
+            self.changedCounts.setText('-')
+            self.csvFilepath.setText(fname)
             self.statusBar().showMessage('파일을 불러왔습니다. '+loadedFile)
+            self.btn_check.setEnabled(True)
         else:
             return
 
@@ -498,45 +436,6 @@ class WindowClass(QMainWindow, form_class):
             self.combo_serverName.setCurrentText(loadedFileServer)
         except ValueError:
             pass
-
-        count = 0
-        oldGuildList = []
-        
-        try:
-            if fname[0]:
-                with open(fname[0], newline='', encoding='utf-8') as csvfile:
-                    reader = csv.reader(csvfile, delimiter=',')
-                    
-                    count = 0
-                    oldGuildList = []
-
-                    for row in reader:
-                        count += 1
-                        oldGuildList.append(row[0])
-                        self.guildMembers.append(row[0])
-        except UnicodeDecodeError:
-            try:
-                if fname[0]:
-                    with open(fname[0], newline='', encoding='cp949') as csvfile:
-                        reader = csv.reader(csvfile, delimiter=',')
-                        
-                        count = 0
-                        oldGuildList = []
-
-                        for row in reader:
-                            count += 1
-                            oldGuildList.append(row[0])
-                            self.guildMembers.append(row[0])
-            except Exception as e:
-                print(e)
-                self.statusBar().showMessage(f'지원하지 않거나 손상된 파일입니다.')
-                return
-        except Exception as e:
-            print(e)
-            self.statusBar().showMessage(f'지원하지 않거나 손상된 파일입니다.')
-            return
-
-        self.count.setText(str(count)+' 명')
 
     def checkInfo(self): #변동사항 확인
         self.guildMembers_changed.setText('')
@@ -554,6 +453,13 @@ class WindowClass(QMainWindow, form_class):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv) 
-    myWindow = WindowClass() 
+    myWindow = WindowClass()
+    #open qss file
+    # file = open("ui/MaterialDark.qss",'r')
+
+    # with file:
+    #     qss = file.read()
+    #     app.setStyleSheet(qss)
+
     myWindow.show()
     app.exec_()
