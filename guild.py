@@ -406,6 +406,7 @@ class WindowClass(QMainWindow, form_class):
         self.statusBar().showMessage(msg)
         
     def main(self):
+        self.input_guildName.blockSignals(True)
         x = execute(self)
         x.updateStatusBarSignal.connect(self.updateStatusBar)
         x.start()
@@ -418,6 +419,7 @@ class WindowClass(QMainWindow, form_class):
             self.btn_check.setEnabled(True)
         except NameError:
             self.btn_check.setEnabled(False)
+        self.input_guildName.blockSignals(False)
 
     def fileLoad(self): #파일 불러오기
         global fname
@@ -450,6 +452,7 @@ class WindowClass(QMainWindow, form_class):
             pass
 
     def checkInfo(self): #변동사항 확인
+        self.input_guildName.blockSignals(True)
         self.guildMembers_changed.setText('')
         y = compareCSV(self)
         y.updateChangesListSignal.connect(self.updateChangesList)
