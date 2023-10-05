@@ -144,7 +144,7 @@ class compareCSV(QThread):
                         for i in range(len(membersList)):
                             writer.writerow(membersList[i])
                     
-                    self.updateStatusBarSignal.emit('추출하기 완료 '+guildName)
+                    self.updateStatusBarSignal.emit('추출하기 완료. '+guildName)
 
                     break
                 else:
@@ -326,7 +326,7 @@ class execute(QThread):
                         for i in range(len(membersList)):
                             writer.writerow(membersList[i])
                     
-                    self.updateStatusBarSignal.emit('추출하기 완료 '+guildName)
+                    self.updateStatusBarSignal.emit('추출하기 완료. '+guildName)
 
                     break
                 else:
@@ -432,6 +432,16 @@ class WindowClass(QMainWindow, form_class):
 
         fname, _ = QFileDialog.getOpenFileName(self,'',initial_dir,'Excel(*.csv);;All File(*)')
         loadedFile = QFileInfo(fname).fileName()
+
+        try:
+            with open(fname, 'r', newline='', encoding='utf-8-sig') as csv_file:
+                csv_reader = csv.reader(csv_file)
+                # Skip the header row if needed
+                header = next(csv_reader)
+        except:
+            self.statusBar().showMessage('지원하지 않거나 손상된 파일입니다.')
+            return
+
         if loadedFile != "":
             print(fname)
             self.guildMembers_changed.setText('')
