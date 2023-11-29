@@ -9,7 +9,7 @@ from PyQt5.QtCore import *
 import webbrowser
 import csv
 
-__version__ = "v2.1.0"
+__version__ = "v2.1.1"
 
 header = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Whale/3.18.154.13 Safari/537.36",
@@ -108,7 +108,7 @@ class compareCSV(QThread):
         self.updateStatusBarSignal.emit('변동사항 확인 완료. '+guildName)
     
     def startCrawl(self,guildName,worldNumber,csv_file_path):
-        url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
+        url = f"https://maplestory.nexon.com/N23Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
         membersList = []
 
         try:
@@ -290,7 +290,7 @@ class execute(QThread):
             self.updateStatusBarSignal.emit('최신 길드 데이터 파일이 이미 존재합니다.')
             return
 
-        url = f"https://maplestory.nexon.com/Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
+        url = f"https://maplestory.nexon.com/N23Ranking/World/Guild?w={worldNumber}&t=1&n={guildName}"
         membersList = []
 
         try:
